@@ -1,0 +1,61 @@
+# JAX SGP4
+
+A JAX implementation of the SGP4 (Simplified General Perturbations 4) satellite orbit propagation algorithm.
+
+## Overview
+
+This implementation provides a differentiable and JIT-compilable SGP4 propagator using JAX. The SGP4 algorithm is the standard method for propagating Two-Line Element (TLE) sets to predict satellite positions and velocities.
+
+## Features
+
+- Pure JAX implementation compatible with `jax.jit`, `jax.vmap`, and `jax.grad`
+- WGS-72 gravitational constants
+- Vectorized propagation over multiple time points
+- High numerical accuracy (matches reference SGP4 implementation to ~10^-11 km)
+
+## Performance
+
+| Method | Time |
+|--------|------|
+| JAX SGP4 (single, unjitted) | ~69 ms |
+| JAX SGP4 (single, jitted) | ~9 μs |
+| JAX SGP4 (10,000 times, vmapped) | ~2.2 ms |
+| Reference C++ SGP4 (single) | ~231 ns |
+| Reference C++ SGP4 (10,000 times) | ~1.4 ms |
+
+## Usage
+
+```python
+import jax
+from jax_sgp4 import sgp4
+
+# Orbital elements (from TLE)
+n0 = 15.49560899  # Mean motion (revs/day)
+e0 = 0.0004132    # Eccentricity
+i0 = 51.6334      # Inclination (degrees)
+w0 = 61.4658      # Argument of perigee (degrees)
+Omega0 = 293.5281 # RAAN (degrees)
+M0 = 298.6746     # Mean anomaly (degrees)
+Bstar = 0.36009e-3  # Drag coefficient
+
+# Propagate 500 minutes from epoch
+tsince = 500.0
+result = sgp4(n0, e0, i0, w0, Omega0, M0, 0.0, Bstar, tsince)
+r_vec = result[:3]  # Position (km)
+v_vec = result[3:]  # Velocity (km/s)
+```
+
+## Requirements
+
+- JAX
+- NumPy
+
+## Limitations
+
+- Currently implements near-Earth propagation only (orbital period < 225 minutes)
+- Deep space perturbations (lunar/solar gravity) not yet implemented
+- Resonance effects not yet implemented
+
+## References
+
+- Hoots, F. R., & Roehrich, R. L. (1980). Spacetrack Report No. 3: Models for Propagation of NORAD Element Sets

@@ -1,0 +1,389 @@
+# Sgp4 base propagation algorithm
+
+import numpy as np
+import jax.numpy as jnp
+from jax import lax
+#import jax
+
+from model import Satellite # when i convert to package change to from .model import Satellite
+
+# note to self: wrap angles before passing to kepler solver? 
+# add deep space logic and potentially error checks later
+
+# ==============================================================================
+# SGP4 CONSTANTS (WGS-72 / Appendix B)
+# ==============================================================================
+
+# could change this later so all constants are in caps to make code clearer? 
+
+# Gravitational constants (WGS-72)
+J2 = 1.082616e-3 # Unnormalised zonal harmonic coefficients
+J3 = -0.253881e-5
+J4 = -1.65597e-6
+GM = 3.986008e5 # Earth gravitational parameter km^3/s^2
+aE = 6378.135   # Earth equatorial radius in km 
+ke = 60.0 / jnp.sqrt(aE**3 / GM)  # sqrt(GM) in units (Earth Radii)^1.5 / min)
+
+# Derived constants (note: in normalised units as implied by paper i.e. aE = 1) 
+k2 = 0.5 * J2 # (Earth Radii)^2 
+A30 = -J3 # Normalized
+k4 = -3/8 * J4 # Normalized
+
+# Density constants
+q0_val = 120.0  # km
+s_val = 78.0    # km
+
+#@jax.jit (commented this out to compare timings of jitted vs non-jitted)
+def sgp4(sat: Satellite, tsince):
+    """
+    SGP4 propagation algorithm.
+    
+    Inputs:
+      sat     : Satellite object containing orbital elements and parameters
+      tsince  : Time since epoch (minutes)
+      
+    Returns:
+      r       : Position vector [x, y, z] in km
+      v       : Velocity vector [vx, vy, vz] in km/s
+      (changed this to output concatenated array of r and v to make timing easier)
+    """
+    
+    # --------------------------------------------------------------------------
+    # A. INITIALIZATION
+    # --------------------------------------------------------------------------
+    
+    # note to self: paper implicity uses units of Earth Radii for distance, minutes for time and radians 
+    # for all internal calculations. (Output converted to km and km/s at end).
+
+    # Unpack satellite parameters
+    n0, e0, i0, w0, Omega0, M0, Bstar = sat
+    
+    # Convert inputs to radians
+    i0 = jnp.radians(i0)
+    w0 = jnp.radians(w0)
+    Omega0 = jnp.radians(Omega0)
+    M0 = jnp.radians(M0)
+    
+    # Convert Mean Motion from revs/day to rad/min
+    n0_rad_min = n0 * (2 * jnp.pi) / 1440.0
+
+    # Recover Brouwer mean motion from Kozai mean motion
+    a1 = (ke / n0_rad_min) ** (2 / 3)
+    
+    # (Precompute trig) 
+    cos_i0 = jnp.cos(i0)
+    sin_i0 = jnp.sin(i0)
+    theta = cos_i0
+    theta2 = theta ** 2
+    theta4 = theta ** 4
+    
+    delta1 = (1.5 * k2 * (3 * theta2 - 1)) / ((1 - e0 ** 2) ** 1.5 * a1 ** 2)
+    a2 = a1 * (1 - delta1 / 3 - delta1 ** 2 - 134 / 81 * delta1 ** 3) 
+    delta0 = (1.5 * k2 * (3 * theta2 - 1)) / ((1 - e0 ** 2) ** 1.5 * a2 ** 2)
+
+    n0_brouwer = n0_rad_min / (1 + delta0)
+    a0_brouwer = (ke / n0_brouwer) ** (2 / 3)
+
+    # 1. Initialization for Secular Effects of Atmospheric Drag
+    # ----------------------------------------------------------
+
+    # Calculate epoch perigee height (in km)
+    rp = (a0_brouwer * (1 - e0) - 1.0) * aE 
+    
+    # Logic for 's' parameter (in Earth Radii) based on perigee height
+    s = lax.cond(
+        rp >= 156,
+        lambda rp: (s_val / aE) + 1.0,
+        lambda rp: lax.cond(
+            rp >= 98,
+            lambda rp: (rp - s_val) / aE + 1.0,
+            lambda rp: (20.0 / aE) + 1.0,
+            rp
+        ), 
+        rp
+    )
+    
+    # q0 parameter in Earth Radii
+    q0 = (q0_val / aE) + 1.0
+
+    xi = 1.0 / (a0_brouwer - s)
+    beta0 = jnp.sqrt(1 - e0 ** 2)
+    eta = a0_brouwer * e0 * xi
+    
+    # C2 Calculation
+    term_c2_1 = a0_brouwer * (1 + 1.5 * eta ** 2 + 4 * e0 * eta + e0 * eta ** 3)
+    term_c2_2 = (1.5 * k2 * xi / (1 - eta ** 2)) * (-0.5 + 1.5 * theta2) * (8 + 24 * eta ** 2 + 3 * eta ** 4)
+    C2 = (q0 - s) ** 4 * xi ** 4 * n0_brouwer * (1 - eta ** 2) ** (-3.5) * (term_c2_1 + term_c2_2)
+    
+    C1 = Bstar * C2
+    #CHECK whether this divide by zero check is nececessary / correct
+    # C3 = jnp.where(e0 > 1e-4, 
+    #                (q0 - s) ** 4 * xi ** 5 * A30 * n0_brouwer * sin_i0 / (k2 * e0), 
+    #                0.0) # Avoid divide by zero for circular orbits
+    C3 = (q0 - s) ** 4 * xi ** 5 * A30 * n0_brouwer * sin_i0 / (k2 * e0)
+
+    # C4 Calculation
+    term_c4_1 = 2 * eta * (1 + e0 * eta) + 0.5 * e0 + 0.5 * eta ** 3
+    term_c4_2 = (2 * k2 * xi / (a0_brouwer * (1 - eta ** 2))) * \
+                (3 * (1 - 3 * theta2) * (1 + 1.5 * eta ** 2 - 2 * e0 * eta - 0.5 * e0 * eta ** 3) + 
+                 0.75 * (1 - theta2) * (2 * eta ** 2 - e0 * eta - e0 * eta ** 3) * jnp.cos(2 * w0))
+    
+    C4 = 2 * n0_brouwer * (q0 - s) ** 4 * xi ** 4 * a0_brouwer * beta0 ** 2 * \
+         (1 - eta ** 2) ** (-3.5) * (term_c4_1 - term_c4_2)
+         
+    C5 = 2 * (q0 - s) ** 4 * xi ** 4 * a0_brouwer * beta0 ** 2 * \
+         (1 - eta ** 2) ** (-3.5) * (1 + 2.75 * eta * (eta + e0) + e0 * eta ** 3)
+         
+    D2 = 4 * a0_brouwer * xi * C1 ** 2
+    D3 = (4 / 3) * a0_brouwer * xi ** 2 * (17 * a0_brouwer + s) * C1 ** 3
+    D4 = (2 / 3) * a0_brouwer ** 2 * xi ** 3 * (221 * a0_brouwer + 31 * s) * C1 ** 4
+
+    # 2. Initialization for Secular Effects of Earth Zonal Harmonics
+    # --------------------------------------------------------------
+
+    Mdot = n0_brouwer * (3 * k2 * (-1 + 3 * theta2) / (2 * a0_brouwer ** 2 * beta0 ** 3) + 
+                         3 * k2 ** 2 * (13 - 78 * theta2 + 137 * theta4) / (16 * a0_brouwer ** 4 * beta0 ** 7))
+    
+    wdot = n0_brouwer * (-3 * k2 * (1 - 5 * theta2) / (2 * a0_brouwer ** 2 * beta0 ** 4) + 
+                         3 * k2 ** 2 * (7 - 114 * theta2 + 395 * theta4) / (16 * a0_brouwer ** 4 * beta0 ** 8) + 
+                         5 * k4 * (3 - 36 * theta2 + 49 * theta4) / (4 * a0_brouwer ** 4 * beta0 ** 8))
+                         
+    Omegadot = n0_brouwer * (-3 * k2 * theta / (a0_brouwer ** 2 * beta0 ** 4) + 
+                             3 * k2 ** 2 * (4 * theta - 19 * theta ** 3) / (2 * a0_brouwer ** 4 * beta0 ** 8) + 
+                             5 * k4 * theta * (3 - 7 * theta2) / (2 * a0_brouwer ** 4 * beta0 ** 8))
+
+    # 3. Initialization for Deep Space (Logic Hook)
+    # Check for Deep Space (Period >= 225 minutes)
+    period_min = 2 * jnp.pi / n0_rad_min
+    is_deep_space = period_min >= 225.0
+    
+    # [ADDITION] Deep Space Initialization placeholder
+    # In a full implementation, this calculates the Z-terms from Appendix A.
+    # For this transcription, we initialize rates to zero unless detailed logic is added.
+    # note to self: if deep space then not zero, else zero
+    dot_M_LS = 0.0
+    dot_w_LS = 0.0
+    dot_Omega_LS = 0.0
+    dot_e_LS = 0.0
+    dot_i_LS = 0.0
+    
+    # If deep space logic were fully expanded here, we would populate the above variables
+    # using the Z coefficients (Z1..Z33) and Lunar/Solar constants.
+
+    # --------------------------------------------------------------------------
+    # B. UPDATE
+    # --------------------------------------------------------------------------
+    
+    # 1. Secular Update for Earth Zonal Gravity and Partial Atmospheric Drag Effects
+    # ------------------------------------------------------------------------------
+
+    MDF = M0 + (n0_brouwer + Mdot) * tsince
+    wDF = w0 + wdot * tsince
+    OmegaDF = Omega0 + Omegadot * tsince
+    
+    # Check for perigee height < 220 km for drag terms (will need to also add deep space check later)
+    is_high_perigee = rp >= 220.0
+    
+    deltaw = lax.cond(
+        is_high_perigee, 
+        lambda _: Bstar * C3 * jnp.cos(w0) * tsince, 
+        lambda _: 0.0,
+        operand=None   
+    )
+    
+    deltaM = lax.cond(
+        is_high_perigee,
+        lambda _: -2/3 * (q0 - s) ** 4 * Bstar * xi ** 4 / (e0 * eta) *
+                  ((1 + eta * jnp.cos(MDF)) ** 3 - (1 + eta * jnp.cos(M0)) ** 3),
+        lambda _: 0.0,
+        operand=None
+    )
+
+    M_secular = MDF + deltaw + deltaM
+    w_secular = wDF - deltaw - deltaM
+    Omega_secular = OmegaDF - 21/2 * (n0_brouwer * k2 * theta / (a0_brouwer ** 2 * beta0 ** 2)) * C1 * tsince ** 2
+
+    # 2. Secular Updates for Lunar and Solar Gravity (Deep Space)
+    # --------------------------------------------------------------
+
+    # [ADDITION] Apply the secular rates derived from Deep Space analysis
+    # Note: These are 0.0 if period < 225 min
+    M_secular += dot_M_LS * tsince
+    w_secular += dot_w_LS * tsince
+    Omega_secular += dot_Omega_LS * tsince
+    e_secular = e0 + dot_e_LS * tsince
+    i_secular = i0 + dot_i_LS * tsince
+
+    # 3. Secular Updates for Resonance Effects of Earth Gravity
+    # --------------------------------------------------------------
+    # Add this later
+
+    # 4. Secular Update for Remaining Atmospheric Drag Effects
+    # --------------------------------------------------------------
+    
+    # Define time powers
+    t2 = tsince ** 2
+    t3 = tsince ** 3
+    t4 = tsince ** 4
+
+    # CHECK which terms to cut off for this condition? paper says 'linear' term which is ambiguous
+
+    # Branch 1: High Perigee (>= 220km)
+    def e_high(_):
+        e = e_secular - Bstar * C4 * tsince - Bstar * C5 * (jnp.sin(M_secular) - jnp.sin(M0))
+        a = (ke / n0_brouwer) ** (2/3) * (1 - C1 * tsince - D2 * t2 - D3 * t3 - D4 * t4) ** 2
+        IL = M_secular + w_secular + Omega_secular + n0_brouwer * \
+                 (1.5 * C1 * t2 + (D2 + 2 * C1 ** 2) * t3 + 
+                  0.25 * (3 * D3 + 12 * C1 * D2 + 10 * C1 ** 3) * t4 + 
+                  0.2 * (3 * D4 + 12 * C1 * D3 + 6 * D2 ** 2 + 30 * C1 ** 2 * D2 + 15 * C1 ** 4) * tsince ** 5)
+        return e, a, IL
+    
+    # Branch 2: Low Perigee (< 220km)
+    def e_low(_):
+        e = e0 - Bstar * C4 * tsince
+        a = (ke / n0_brouwer) ** (2/3) * (1 - C1 * tsince) ** 2
+        IL = M_secular + w_secular + Omega_secular + n0_brouwer * \
+                 (1.5 * C1 * t2 + (D2 + 2 * C1 ** 2) * t3 + 
+                  0.25 * (3 * D3 + 12 * C1 * D2 + 10 * C1 ** 3) * t4)
+        return e, a, IL
+    
+    # Select based on perigee condition
+    e_final_sec, a_final_sec, IL = lax.cond(
+        is_high_perigee, 
+        e_high, 
+        e_low,
+        operand=None
+    )
+
+    # note to self: not sure whether to keep this? 
+    # Enforce eccentricity limits (0 <= e < 1)
+    #e_final_sec = jnp.clip(e_final_sec, 1e-6, 1.0 - 1e-6)
+    
+    # Calculate Mean Motion 'n' at time t
+    n = ke / (a_final_sec ** 1.5)
+    beta = jnp.sqrt(1 - e_final_sec ** 2)
+
+    # 5. Update for Long-Period Periodic Effects of Lunar and Solar Gravity
+    # ---------------------------------------------------------------------
+
+    # add this later
+
+    # 6. Update for Long-Period Periodic Effects of Earth Gravity
+    # -----------------------------------------------------------
+
+    # Calculate axN, ayN
+    # Note: Phase 1 of long period periodics
+    axN = e_final_sec * jnp.cos(w_secular)
+    
+    term_ill = (A30 * jnp.sin(i_secular)) / (8 * k2 * a_final_sec * beta ** 2)
+    ILL = term_ill * axN * (3 + 5 * jnp.cos(i_secular)) / (1 + jnp.cos(i_secular))
+    ayNL = A30 * jnp.sin(i_secular) / (4 * k2 * a_final_sec * beta ** 2)
+    
+    ILT = IL + ILL
+    ayN = e_final_sec * jnp.sin(w_secular) + ayNL
+
+    # 7. Update for Short-Period Periodic Effects of Earth Gravity
+    # ------------------------------------------------------------
+    
+    # Solve Kepler's Equation for (E + w)
+    # The variable U = M + w + Omega (modified) - Omega = M + w (? idk what this line is about)
+    U = ILT - Omega_secular
+    
+    # Fixed-Point Iteration Solver for Kepler's Equation
+    # We are solving for Ew = (E + w)
+    # Iteration: Ew_new = Ew_old + Delta
+    
+    def kepler_body(i, Ew_curr):
+        numerator = U - ayN * jnp.cos(Ew_curr) + axN * jnp.sin(Ew_curr) - Ew_curr
+        denominator = 1 - ayN * jnp.sin(Ew_curr) - axN * jnp.cos(Ew_curr)
+        return Ew_curr + numerator / denominator
+    
+    # Initial guess
+    Ew_initial = U
+    
+    # Run 10 iterations
+    Ew = lax.fori_loop(0, 10, kepler_body, Ew_initial)
+
+    # sgp4 python also has a cut off if correction becomes negligibly small and a limit on step size
+    # I could do this later but i think 10 iterations is fine for now
+    # if I want to add cut off condition then use lax.while_loop instead
+
+    # Calculate preliminary quantities for short-period periodics
+    ecosE = axN * jnp.cos(Ew) + ayN * jnp.sin(Ew)
+    esinE = axN * jnp.sin(Ew) - ayN * jnp.cos(Ew)
+    
+    e_osc = jnp.sqrt(ecosE ** 2 + esinE ** 2) # note to self: this is diff. to exact eq. in paper but gives same result
+    #e_osc = jnp.clip(e_osc, 1e-6, 1.0 - 1e-6) # Safety clip - CHECK if needed later
+    
+    pL = a_final_sec * (1 - e_osc ** 2)
+    r = a_final_sec * (1 - ecosE)
+    
+    rdot = ke * jnp.sqrt(a_final_sec) / r * esinE
+    rfdot = ke * jnp.sqrt(pL) / r
+    
+    # Arguments of Latitude (u)
+    # Note: e in the denominator term comes from the secular/long-period mix (e_osc logic)
+    # The paper uses 'e' in the denominator term `1 + sqrt(1-e^2)`. 
+    # Standard implementations use the osculating e here.
+    cosu = (a_final_sec / r) * (jnp.cos(Ew) - axN + ayN * esinE / (1 + jnp.sqrt(1 - e_osc ** 2)))
+    sinu = (a_final_sec / r) * (jnp.sin(Ew) - ayN - axN * esinE / (1 + jnp.sqrt(1 - e_osc ** 2)))
+    u = jnp.arctan2(sinu, cosu)
+
+    # Short-Period Corrections
+    sin2u = jnp.sin(2 * u)
+    cos2u = jnp.cos(2 * u)
+    
+    # Corrections (Deltas)
+    # Using i_secular (mean inclination) for these factors
+    sin_i = jnp.sin(i_secular)
+    cos_i = jnp.cos(i_secular)
+    
+    Deltar = (k2 / (2 * pL)) * (1 - cos_i ** 2) * cos2u
+    Deltau = (-k2 / (4 * pL ** 2)) * (7 * cos_i ** 2 - 1) * sin2u
+    DeltaOmega = (3 * k2 * cos_i / (2 * pL ** 2)) * sin2u
+    Deltai = (3 * k2 * cos_i / (2 * pL ** 2)) * sin_i * cos2u
+    Deltardot = (-k2 * n / pL) * (1 - cos_i ** 2) * sin2u
+    Deltarfdot = (k2 * n / pL) * ((1 - cos_i ** 2) * cos2u - 1.5 * (1 - 3 * cos_i ** 2))
+
+    # Osculating Elements
+    rk = r * (1 - 1.5 * k2 * jnp.sqrt(1 - e_osc ** 2) / (pL ** 2) * (3 * cos_i ** 2 - 1)) + Deltar
+    uk = u + Deltau
+    Omegak = Omega_secular + DeltaOmega
+    ik = i_secular + Deltai
+    rdotk = rdot + Deltardot
+    rfdotk = rfdot + Deltarfdot
+
+    # --------------------------------------------------------------------------
+    # C. VECTORS (Position and Velocity)
+    # --------------------------------------------------------------------------
+    
+    # Orientation Vectors (M and N)
+    M = jnp.array([
+        -jnp.sin(Omegak) * jnp.cos(ik), 
+        jnp.cos(Omegak) * jnp.cos(ik), 
+        jnp.sin(ik)
+    ])
+
+    N = jnp.array([
+        jnp.cos(Omegak), 
+        jnp.sin(Omegak), 
+        0.0
+    ])
+
+    # Precompute trig
+    sin_uk = jnp.sin(uk)
+    cos_uk = jnp.cos(uk)
+
+    # U and V vectors
+    U = M * sin_uk + N * cos_uk
+    V = M * cos_uk - N * sin_uk
+
+    # Position and Velocity in TEME frame (Earth Radii and Earth Radii/min)
+    # converted to output unit Distance = km, Velocity = km/s in one step
+    r_vec = rk * U * aE
+    v_vec = (rdotk * U + rfdotk * V) * aE / 60.0
+
+    return jnp.concatenate((r_vec, v_vec))
+
+    # # If output as separate r_vec, v_vec desired:
+    #return r_vec, v_vec

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jax_sgp4"
+version = "0.1.0"
+description = "A JAX implementation of the SGP4 satellite orbit propagation algorithm"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "jax",
+    "jaxlib",
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]

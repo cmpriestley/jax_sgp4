@@ -5,7 +5,7 @@ import jax.numpy as jnp
 from jax import lax
 #import jax
 
-from model import Satellite # when i convert to package change to from .model import Satellite
+from .model import Satellite
 
 # note to self: wrap angles before passing to kepler solver? 
 # add deep space logic and potentially error checks later

@@ -1,8 +1,8 @@
 # variations of the spg4 function to take different inputs etc. 
 # (find a better way to name this later)
 
-from model import Satellite
-from propagation import sgp4
+from .model import Satellite
+from .propagation import sgp4
 import jax.numpy as jnp
 import jax
 

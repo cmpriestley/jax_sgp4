@@ -1,5 +1,5 @@
 
-from model import Satellite
+from .model import Satellite
 import jax.numpy as jnp
 
 def tle2sat(tle_1, tle_2):

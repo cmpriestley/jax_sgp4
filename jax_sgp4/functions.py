@@ -16,15 +16,17 @@ def jaxsgp4(sat: Satellite, tsince):
     return jnp.squeeze(result)
 
 # make two functions to compare the speed of this against vs doing sep functions for scalar or vector tince
-def jaxsgp4_scalar(sat: Satellite, tsince):
-    func = jax.jit(sgp4)
-    return func(sat, tsince)
+jaxsgp4_scalar = jax.jit(sgp4)
+# def jaxsgp4_scalar(sat: Satellite, tsince):
+#     func = jax.jit(sgp4)
+#     return func(sat, tsince)
 
-def jaxsgp4_vector(sat: Satellite, tsince):
-    func = jax.jit(sgp4)
-    func = jax.vmap(func, in_axes=(None, 0))
-    return func(sat, tsince)
-
+# the same as old sgp4_many_times function
+jaxsgp4_vector = jax.jit(jax.vmap(sgp4, in_axes=(None, 0)))
+# def jaxsgp4_vector(sat: Satellite, tsince):
+#     func = jax.jit(sgp4)
+#     func = jax.vmap(func, in_axes=(None, 0))
+#     return func(sat, tsince)
 
 # remember need to jit compile this
 def sgp4_jdfr(sat: Satellite, jd, fr):
@@ -53,7 +55,7 @@ jaxsgp4_jdfr = jax.jit(jax.vmap(sgp4_jdfr, in_axes=(None, 0, 0)))
 
 
 
-# eventually can just integrate this with sgp4 function so a single function can handle all cases
+# this fn is obsolete, can get rid of this 
 def sgp4_many_times(sat: Satellite, tsince_array):
     """
     Vectorized SGP4 propagation over multiple times for a single satellite.

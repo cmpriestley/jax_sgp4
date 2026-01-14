@@ -1,0 +1,71 @@
+# variations of the spg4 function to take different inputs etc. 
+# (find a better way to name this later)
+
+from model import Satellite
+from propagation import sgp4
+import jax.numpy as jnp
+import jax
+
+
+# remember need to jit compile this
+def sgp4_jdfr(sat: Satellite, jd, fr):
+    """
+    SGP4 propagation algorithm using Julian Date and Fractional Day.
+    
+    Inputs:
+      sat     : Satellite object containing orbital elements and parameters
+      jd      : Julian Date (integer part)
+      fr      : Fractional part of the day
+    """
+
+    # Calculate epoch in Julian Date and Fractional Day
+    year = sat.epochyr
+    days, fraction = jnp.divmod(sat.epochdays, 1.0)
+    jd_epoch = year * 365 + (year - 1) // 4 + 1721424.5 + days + 1721044.5
+    fr_epoch = round(fraction, 8) # not sure why rounding is needed but it's in python sgp4
+
+    tsince = (jd - jd_epoch) * 1440.0 + (fr - fr_epoch) * 1440.0
+    rv = sgp4(sat, tsince)
+    return rv
+
+# eventually can just integrate this with sgp4 function so a single function can handle all cases
+def sgp4_many_times(sat: Satellite, tsince_array):
+    """
+    Vectorized SGP4 propagation over multiple times for a single satellite.
+    
+    Inputs:
+      sat          : Satellite object containing orbital elements and parameters
+      tsince_array : Array of times since epoch (minutes) jax or numpy both work?
+
+    Returns:
+      concatenated array of position and velocity vectors at each time in tsince_array (km and km/s)
+    """
+
+    jaxsgp4 = jax.jit(sgp4)
+
+    # vectorize over tsince_array
+    sgp4_vectorized = jax.vmap(jaxsgp4, in_axes=(None, 0))
+
+    return sgp4_vectorized(sat, tsince_array)
+
+def sgp4_many_sats(sat: Satellite, tsince):
+    # fix what I named the function argument here
+    """
+    Vectorized SGP4 propagation over multiple satellites for a single time.
+
+    Inputs:
+      sat_array : Array of Satellite objects containing orbital elements and parameters
+      tsince    : Time since epoch (minutes)
+
+    Returns:
+      concatenated array of position and velocity vectors for each satellite at time tsince (km and km/s)
+    """
+    
+    jaxsgp4 = jax.jit(sgp4)
+
+    # vectorize over sat_array
+    sgp4_vectorized = jax.vmap(jaxsgp4, in_axes=(0, None))
+
+    return sgp4_vectorized(sat, tsince)
+
+# def jax sgp4 for tsince and jdfr inputs which vectorise and jit compile here later

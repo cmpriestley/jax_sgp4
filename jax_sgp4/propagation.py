@@ -1,5 +1,9 @@
 # Sgp4 base propagation algorithm
 
+# is this the right place to import this? (it will apply to all propagation fns here?)
+from jax import config
+config.update("jax_enable_x64", True)
+
 import numpy as np
 import jax.numpy as jnp
 from jax import lax
@@ -56,8 +60,16 @@ def sgp4(sat: Satellite, tsince):
     # for all internal calculations. (Output converted to km and km/s at end).
 
     # Unpack satellite parameters
-    n0, e0, i0, w0, Omega0, M0, Bstar = sat
-    
+    n0 = sat.n0
+    e0 = sat.e0
+    i0 = sat.i0
+    w0 = sat.w0
+    Omega0 = sat.Omega0
+    M0 = sat.M0
+    Bstar = sat.Bstar
+
+    #n0, e0, i0, w0, Omega0, M0, Bstar, _, _ = sat
+
     # Convert inputs to radians
     i0 = jnp.radians(i0)
     w0 = jnp.radians(w0)

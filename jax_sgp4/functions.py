@@ -6,6 +6,25 @@ from .propagation import sgp4
 import jax.numpy as jnp
 import jax
 
+# sgp4 function jitted and vectorised over times - for a single satellite propagated over many times
+# works for scalar and vector tsince inputs
+def jaxsgp4(sat: Satellite, tsince):
+    tsince = jnp.atleast_1d(tsince)
+    func = jax.jit(sgp4)
+    func = jax.vmap(func, in_axes=(None, 0))
+    result = func(sat, tsince)
+    return jnp.squeeze(result)
+
+# make two functions to compare the speed of this against vs doing sep functions for scalar or vector tince
+def jaxsgp4_scalar(sat: Satellite, tsince):
+    func = jax.jit(sgp4)
+    return func(sat, tsince)
+
+def jaxsgp4_vector(sat: Satellite, tsince):
+    func = jax.jit(sgp4)
+    func = jax.vmap(func, in_axes=(None, 0))
+    return func(sat, tsince)
+
 
 # remember need to jit compile this
 def sgp4_jdfr(sat: Satellite, jd, fr):
@@ -21,12 +40,18 @@ def sgp4_jdfr(sat: Satellite, jd, fr):
     # Calculate epoch in Julian Date and Fractional Day
     year = sat.epochyr
     days, fraction = jnp.divmod(sat.epochdays, 1.0)
-    jd_epoch = year * 365 + (year - 1) // 4 + 1721424.5 + days + 1721044.5
-    fr_epoch = round(fraction, 8) # not sure why rounding is needed but it's in python sgp4
+    jd_epoch = year * 365 + (year - 1) // 4 + days + 1721044.5
+    fr_epoch = jnp.round(fraction, 8) # not sure why rounding is needed but it's in python sgp4
 
     tsince = (jd - jd_epoch) * 1440.0 + (fr - fr_epoch) * 1440.0
     rv = sgp4(sat, tsince)
     return rv
+
+# sgp4jdfr function jitted and vectorised over jd and fr inputs
+jaxsgp4_jdfr = jax.jit(jax.vmap(sgp4_jdfr, in_axes=(None, 0, 0)))
+
+
+
 
 # eventually can just integrate this with sgp4 function so a single function can handle all cases
 def sgp4_many_times(sat: Satellite, tsince_array):

@@ -55,5 +55,7 @@ def tle2sat_array(tle_1_array, tle_2_array):
         w0 = jnp.array([sat.w0 for sat in sats]),
         Omega0 = jnp.array([sat.Omega0 for sat in sats]),
         M0 = jnp.array([sat.M0 for sat in sats]),
-        Bstar = jnp.array([sat.Bstar for sat in sats])
+        Bstar = jnp.array([sat.Bstar for sat in sats]),
+        epochdays = jnp.array([sat.epochdays for sat in sats]),
+        epochyr = jnp.array([sat.epochyr for sat in sats])
     )

@@ -7,7 +7,6 @@ config.update("jax_enable_x64", True)
 import numpy as np
 import jax.numpy as jnp
 from jax import lax
-#import jax
 
 from .model import Satellite
 
@@ -67,8 +66,6 @@ def sgp4(sat: Satellite, tsince):
     Omega0 = sat.Omega0
     M0 = sat.M0
     Bstar = sat.Bstar
-
-    #n0, e0, i0, w0, Omega0, M0, Bstar, _, _ = sat
 
     # Convert inputs to radians
     i0 = jnp.radians(i0)

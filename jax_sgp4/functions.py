@@ -6,14 +6,21 @@ from .propagation import sgp4
 import jax.numpy as jnp
 import jax
 
-# sgp4 function jitted and vectorised over times - for a single satellite propagated over many times
-# works for scalar and vector tsince inputs
+# # sgp4 function jitted and vectorised over times - for a single satellite propagated over many times
+# # works for scalar and vector tsince inputs
+# def jaxsgp4(sat: Satellite, tsince):
+#     tsince = jnp.atleast_1d(tsince)
+#     func = jax.jit(sgp4)
+#     func = jax.vmap(func, in_axes=(None, 0))
+#     result = func(sat, tsince)
+#     return jnp.squeeze(result)
+
+# alternative way to do the above function with separate scalar and vector functions
+# probably get rid of this because it is slower than separate code and not much cleaner
 def jaxsgp4(sat: Satellite, tsince):
-    tsince = jnp.atleast_1d(tsince)
-    func = jax.jit(sgp4)
-    func = jax.vmap(func, in_axes=(None, 0))
-    result = func(sat, tsince)
-    return jnp.squeeze(result)
+    if jnp.ndim(tsince) == 0:
+        return jaxsgp4_scalar(sat, tsince)
+    return jaxsgp4_vector(sat, tsince)
 
 # make two functions to compare the speed of this against vs doing sep functions for scalar or vector tince
 jaxsgp4_scalar = jax.jit(sgp4)
@@ -49,8 +56,9 @@ def sgp4_jdfr(sat: Satellite, jd, fr):
     rv = sgp4(sat, tsince)
     return rv
 
-# sgp4jdfr function jitted and vectorised over jd and fr inputs
-jaxsgp4_jdfr = jax.jit(jax.vmap(sgp4_jdfr, in_axes=(None, 0, 0)))
+# want sgp4)jdfr that does scalar, vector over jd, fr and vector over sats and vector over both?
+# sgp4jdfr function jitted and vectorised over satellites
+jaxsgp4_jdfr = jax.jit(jax.vmap(sgp4_jdfr, in_axes=(0, None, None)))
 
 
 

@@ -60,9 +60,9 @@ def sgp4_jdfr(sat: Satellite, jd, fr):
 # sgp4jdfr function jitted and vectorised over satellites
 #jaxsgp4_jdfr = jax.jit(jax.vmap(sgp4_jdfr, in_axes=(0, None, None)))
 def jaxsgp4_jdfr(sat: Satellite, jd, fr):
+    print("NEW FUNCTION CALLED")
     func = jax.jit(sgp4_jdfr)
     func = jax.vmap(func, in_axes=(0, None, None))
-    print("NEW FUNCTION CALLED")
     return func(sat, jd, fr)
 
 

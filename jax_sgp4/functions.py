@@ -56,9 +56,10 @@ def sgp4_jdfr(sat: Satellite, jd, fr):
     rv = sgp4(sat, tsince)
     return rv
 
-# want sgp4)jdfr that does scalar, vector over jd, fr and vector over sats and vector over both?
+# want sgp4_jdfr that does scalar, vector over jd, fr and vector over sats and vector over both?
 # sgp4jdfr function jitted and vectorised over satellites
-jaxsgp4_jdfr = jax.jit(jax.vmap(sgp4_jdfr, in_axes=(0, None, None)))
+def jaxsgp4_jdfr(sat, jd, fr):
+    return jax.jit(jax.vmap(sgp4_jdfr, in_axes=(0, None, None)))(sat, jd, fr)
 
 
 

@@ -44,6 +44,8 @@ def tle2sat(tle_1, tle_2):
 
 # i think this needs fixing since I changed the Satellite class
 # maybe change this in the future so tle2sat can handle arrays directly?
+# should change this to take [(tle1_1, tle2_1), (tle1_2, tle2_2), ...] input format later since 
+# this is what sgp4 package uses
 def tle2sat_array(tle_1_array, tle_2_array):
     
     sats = [tle2sat(tle1, tle2) for tle1, tle2 in zip(tle_1_array, tle_2_array)]

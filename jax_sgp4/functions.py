@@ -50,11 +50,23 @@ def sgp4_jdfr(sat: Satellite, jd, fr):
     year = sat.epochyr
     days, fraction = jnp.divmod(sat.epochdays, 1.0)
     jd_epoch = year * 365 + (year - 1) // 4 + days + 1721044.5
-    fr_epoch = jnp.round(fraction, 8) # not sure why rounding is needed but it's in python sgp4
+    fr_epoch = jnp.round(fraction, 8) # round to match TLE precision
 
     tsince = (jd - jd_epoch) * 1440.0 + (fr - fr_epoch) * 1440.0
     rv = sgp4(sat, tsince)
+
     return rv
+
+    # year mon day hr min sec to jd fr:
+    # jd = (367.0 * year
+    #      - 7 * (year + ((mon + 9) // 12.0)) * 0.25 // 1.0
+	  #  + 275 * mon / 9.0 // 1.0
+	  #  + day
+    #      + 1721013.5)
+    # fr = (sec + minute * 60.0 + hr * 3600.0) / 86400.0;
+    # return jd, fr
+
+
 
 # want sgp4_jdfr that does scalar, vector over jd, fr and vector over sats and vector over both?
 # sgp4jdfr function jitted and vectorised over satellites

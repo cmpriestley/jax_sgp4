@@ -19,15 +19,17 @@ def tle2sat(tle_1, tle_2):
     # just do necessary element extraction for now (could add e.g. satnum etc. later)
 
     # Extract elements from TLE strings
-    n0 = jnp.asarray(float(tle_2[52:63]))  # Mean motion (revs/day)
-    e0 = jnp.asarray(float('0.' + tle_2[26:33].replace(' ', '0')))  # Eccentricity (not sure whether replace needed but it's in python sgp4)
-    i0 = jnp.asarray(float(tle_2[8:16]))  # Inclination (degrees)
-    w0 = jnp.asarray(float(tle_2[34:42]))  # Argument of perigee (degrees)
-    Omega0 = jnp.asarray(float(tle_2[17:25]))  # Right ascension of the ascending node (degrees)
-    M0 = jnp.asarray(float(tle_2[43:51]))  # Mean anomaly (degrees)
-    epochdays = jnp.asarray(float(tle_1[20:32]))  # Epoch in days of year
+    # Use jnp.array() instead of jnp.asarray() to ensure JAX arrays are created
+    # (jnp.asarray may return Python floats in some environments)
+    n0 = jnp.array(float(tle_2[52:63]))  # Mean motion (revs/day)
+    e0 = jnp.array(float('0.' + tle_2[26:33].replace(' ', '0')))  # Eccentricity (not sure whether replace needed but it's in python sgp4)
+    i0 = jnp.array(float(tle_2[8:16]))  # Inclination (degrees)
+    w0 = jnp.array(float(tle_2[34:42]))  # Argument of perigee (degrees)
+    Omega0 = jnp.array(float(tle_2[17:25]))  # Right ascension of the ascending node (degrees)
+    M0 = jnp.array(float(tle_2[43:51]))  # Mean anomaly (degrees)
+    epochdays = jnp.array(float(tle_1[20:32]))  # Epoch in days of year
 
-    Bstar = jnp.asarray(float(tle_1[53] + '.' + tle_1[54:59]))  # Bstar mantissa
+    Bstar = jnp.array(float(tle_1[53] + '.' + tle_1[54:59]))  # Bstar mantissa
     bexp = int(tle_1[59:61])  # Exponent part of Bstar
     Bstar = Bstar * 10 ** bexp  # Drag coefficient (Earth radii^-1) 
 

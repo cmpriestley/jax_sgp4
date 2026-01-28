@@ -1,10 +1,5 @@
 # Sgp4 base propagation algorithm
 
-# is this the right place to import this? (it will apply to all propagation fns here?)
-from jax import config
-config.update("jax_enable_x64", True)
-
-import numpy as np
 import jax.numpy as jnp
 from jax import lax
 

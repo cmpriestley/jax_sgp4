@@ -2,6 +2,7 @@
 
 import jax.numpy as jnp
 from jax import lax
+import numpy as np
 
 from .model import Satellite
 
@@ -20,7 +21,8 @@ J3 = -0.253881e-5
 J4 = -1.65597e-6
 GM = 3.986008e5 # Earth gravitational parameter km^3/s^2
 aE = 6378.135   # Earth equatorial radius in km 
-ke = 60.0 / jnp.sqrt(aE**3 / GM)  # sqrt(GM) in units (Earth Radii)^1.5 / min)
+ke = 60.0 / np.sqrt(aE**3 / GM)  # sqrt(GM) in units (Earth Radii)^1.5 / min)
+# (use np for constants calculated at import time to avoid jax issues at import) 
 
 # Derived constants (note: in normalised units as implied by paper i.e. aE = 1) 
 k2 = 0.5 * J2 # (Earth Radii)^2 

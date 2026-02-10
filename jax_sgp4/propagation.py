@@ -256,13 +256,20 @@ def sgp4(sat: Satellite, tsince):
                   0.2 * (3 * D4 + 12 * C1 * D3 + 6 * D2 ** 2 + 30 * C1 ** 2 * D2 + 15 * C1 ** 4) * tsince ** 5)
         return e, a, IL
     
+    # # Branch 2: Low Perigee (< 220km)
+    # def e_low(_):
+    #     e = e0 - Bstar * C4 * tsince
+    #     a = (ke / n0_brouwer) ** (2/3) * (1 - C1 * tsince) ** 2
+    #     IL = M_secular + w_secular + Omega_secular + n0_brouwer * \
+    #              (1.5 * C1 * t2 + (D2 + 2 * C1 ** 2) * t3 + 
+    #               0.25 * (3 * D3 + 12 * C1 * D2 + 10 * C1 ** 3) * t4)
+    #     return e, a, IL
+    
     # Branch 2: Low Perigee (< 220km)
     def e_low(_):
         e = e0 - Bstar * C4 * tsince
         a = (ke / n0_brouwer) ** (2/3) * (1 - C1 * tsince) ** 2
-        IL = M_secular + w_secular + Omega_secular + n0_brouwer * \
-                 (1.5 * C1 * t2 + (D2 + 2 * C1 ** 2) * t3 + 
-                  0.25 * (3 * D3 + 12 * C1 * D2 + 10 * C1 ** 3) * t4)
+        IL = M_secular + w_secular + Omega_secular + n0_brouwer * (1.5 * C1 * t2)
         return e, a, IL
     
     # Select based on perigee condition

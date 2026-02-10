@@ -22,7 +22,7 @@ J4 = -1.65597e-6
 GM = 3.986008e5 # Earth gravitational parameter km^3/s^2
 aE = 6378.135   # Earth equatorial radius in km 
 ke = 60.0 / np.sqrt(aE**3 / GM)  # sqrt(GM) in units (Earth Radii)^1.5 / min)
-# (use np for constants calculated at import time to avoid jax issues at import) 
+# use np for constants calculated at import time to avoid jax issues at import (this didn't actually really improve anything at all)
 
 # Derived constants (note: in normalised units as implied by paper i.e. aE = 1) 
 k2 = 0.5 * J2 # (Earth Radii)^2 
@@ -122,11 +122,11 @@ def sgp4(sat: Satellite, tsince):
     C2 = (q0 - s) ** 4 * xi ** 4 * n0_brouwer * (1 - eta ** 2) ** (-3.5) * (term_c2_1 + term_c2_2)
     
     C1 = Bstar * C2
-    #CHECK whether this divide by zero check is nececessary / correct
-    # C3 = jnp.where(e0 > 1e-4, 
-    #                (q0 - s) ** 4 * xi ** 5 * A30 * n0_brouwer * sin_i0 / (k2 * e0), 
-    #                0.0) # Avoid divide by zero for circular orbits
-    C3 = (q0 - s) ** 4 * xi ** 5 * A30 * n0_brouwer * sin_i0 / (k2 * e0)
+    # CHECK whether this divide by zero check is nececessary / correct
+    C3 = jnp.where(e0 > 1e-4, 
+                   (q0 - s) ** 4 * xi ** 5 * A30 * n0_brouwer * sin_i0 / (k2 * e0), 
+                   0.0) # Avoid divide by zero for circular orbits
+    #C3 = (q0 - s) ** 4 * xi ** 5 * A30 * n0_brouwer * sin_i0 / (k2 * e0)
 
     # C4 Calculation
     term_c4_1 = 2 * eta * (1 + e0 * eta) + 0.5 * e0 + 0.5 * eta ** 3
@@ -197,13 +197,25 @@ def sgp4(sat: Satellite, tsince):
         operand=None   
     )
     
+    # deltaM = lax.cond(
+    #     is_high_perigee,
+    #     lambda _: -2/3 * (q0 - s) ** 4 * Bstar * xi ** 4 / (e0 * eta) *
+    #               ((1 + eta * jnp.cos(MDF)) ** 3 - (1 + eta * jnp.cos(M0)) ** 3),
+    #     lambda _: 0.0,
+    #     operand=None
+    # )
+
+# add eccentricity guard
     deltaM = lax.cond(
-        is_high_perigee,
-        lambda _: -2/3 * (q0 - s) ** 4 * Bstar * xi ** 4 / (e0 * eta) *
-                  ((1 + eta * jnp.cos(MDF)) ** 3 - (1 + eta * jnp.cos(M0)) ** 3),
-        lambda _: 0.0,
-        operand=None
-    )
+      is_high_perigee,
+      lambda _: jnp.where(e0 > 1e-4,
+                          -2/3 * (q0 - s) ** 4 * Bstar * xi ** 4 / (e0 * eta) *
+                          ((1 + eta * jnp.cos(MDF)) ** 3 - (1 + eta *
+                            jnp.cos(M0)) ** 3),
+                          0.0),
+      lambda _: 0.0,
+      operand=None
+  )
 
     M_secular = MDF + deltaw + deltaM
     w_secular = wDF - deltaw - deltaM
@@ -263,7 +275,7 @@ def sgp4(sat: Satellite, tsince):
 
     # note to self: not sure whether to keep this? 
     # Enforce eccentricity limits (0 <= e < 1)
-    #e_final_sec = jnp.clip(e_final_sec, 1e-6, 1.0 - 1e-6)
+    e_final_sec = jnp.clip(e_final_sec, 1e-6, 1.0 - 1e-6)
     
     # Calculate Mean Motion 'n' at time t
     n = ke / (a_final_sec ** 1.5)

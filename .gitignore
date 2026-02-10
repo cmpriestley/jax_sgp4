@@ -9,3 +9,4 @@ dist/
 build/
 *.egg
 jax_sgp4/.DS_Store
+.DS_Store

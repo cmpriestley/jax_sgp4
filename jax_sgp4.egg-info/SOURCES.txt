@@ -10,3 +10,6 @@ jax_sgp4.egg-info/SOURCES.txt
 jax_sgp4.egg-info/dependency_links.txt
 jax_sgp4.egg-info/requires.txt
 jax_sgp4.egg-info/top_level.txt
+jax_sgp4/data/gnss.txt
+jax_sgp4/data/starlink.txt
+jax_sgp4/data/stations.txt

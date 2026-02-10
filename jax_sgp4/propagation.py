@@ -276,6 +276,12 @@ def sgp4(sat: Satellite, tsince):
     # note to self: not sure whether to keep this? 
     # Enforce eccentricity limits (0 <= e < 1)
     e_final_sec = jnp.clip(e_final_sec, 1e-6, 1.0 - 1e-6)
+
+    # Wrap secular angles to [0, 2π)
+    twopi = 2 * jnp.pi
+    Omega_secular = Omega_secular % twopi
+    w_secular = w_secular % twopi
+    IL = IL % twopi
     
     # Calculate Mean Motion 'n' at time t
     n = ke / (a_final_sec ** 1.5)

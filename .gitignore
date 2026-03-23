@@ -8,5 +8,16 @@ __pycache__/
 dist/
 build/
 *.egg
-jax_sgp4/.DS_Store
-.DS_Store
+.eggs/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/

@@ -1,17 +1,96 @@
 # JAX SGP4
 
-A JAX implementation of the SGP4 (Simplified General Perturbations 4) satellite orbit propagation algorithm.
+[![CI](https://github.com/cmpriestley/jax_sgp4/actions/workflows/ci.yml/badge.svg)](https://github.com/cmpriestley/jax_sgp4/actions/workflows/ci.yml)
+
+A pure JAX implementation of the SGP4 (Simplified General Perturbations 4) satellite orbit propagation algorithm.
 
 ## Overview
 
-This implementation provides a differentiable and JIT-compilable SGP4 propagator using JAX. The SGP4 algorithm is the standard method for propagating Two-Line Element (TLE) sets to predict satellite positions and velocities.
+`jax_sgp4` provides a differentiable and JIT-compilable SGP4 propagator built entirely in JAX. The SGP4 algorithm is the standard method for propagating Two-Line Element (TLE) sets to predict satellite positions and velocities.
 
-## Features
+Because the implementation uses only JAX primitives, it is fully compatible with JAX's transformation system:
 
-- Pure JAX implementation compatible with `jax.jit`, `jax.vmap`, and `jax.grad`
-- WGS-72 gravitational constants
-- Vectorized propagation over multiple time points
-- High numerical accuracy (matches reference SGP4 implementation to ~10^-11 km)
+- **`jax.jit`** — compile the propagator for fast repeated evaluation
+- **`jax.vmap`** — vectorize over satellites, time steps, or both
+- **`jax.grad`** / **`jax.jacobian`** — compute exact derivatives for optimisation and orbit determination
+
+## Installation
+
+```bash
+pip install jax_sgp4
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/cmpriestley/jax_sgp4.git
+cd jax_sgp4
+pip install -e ".[dev]"
+```
+
+## Quick Start
+
+```python
+from jax_sgp4 import tle2sat, sgp4
+
+# Parse a TLE
+tle_line1 = "1 44714U 19074B   26013.33334491  .00010762  00000+0  67042-3 0  9990"
+tle_line2 = "2 44714  53.0657  75.1067 0002699  79.3766  82.4805 15.10066292  5798"
+
+sat = tle2sat(tle_line1, tle_line2)
+
+# Propagate 60 minutes from epoch
+rv, error_code = sgp4(sat, 60.0)
+
+r = rv[:3]   # Position in km (TEME frame)
+v = rv[3:]   # Velocity in km/s (TEME frame)
+```
+
+## API Reference
+
+### Data Model
+
+**`Satellite`** — A `NamedTuple` holding orbital elements parsed from a TLE:
+
+| Field | Description |
+|-------|-------------|
+| `n0` | Mean motion (revolutions/day) |
+| `e0` | Eccentricity |
+| `i0` | Inclination (degrees) |
+| `w0` | Argument of perigee (degrees) |
+| `Omega0` | Right ascension of ascending node (degrees) |
+| `M0` | Mean anomaly (degrees) |
+| `Bstar` | Drag coefficient (Earth radii⁻¹) |
+| `epochdays` | Epoch as day of year (fractional) |
+| `epochyr` | Epoch year (4-digit) |
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `tle2sat(tle_1, tle_2)` | Parse a single TLE into a `Satellite` object |
+| `tle2sat_array(tle_1_array, tle_2_array)` | Parse multiple TLEs into a vectorized `Satellite` |
+| `sgp4(sat, tsince)` | Propagate `tsince` minutes from epoch. Returns `(rv, error_code)` where `rv` is a length-6 array `[x, y, z, vx, vy, vz]` in km and km/s |
+| `sgp4_jdfr(sat, jd, fr)` | Propagate to a Julian Date (`jd` + `fr`). Returns `(rv, error_code)` |
+
+### Error Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | No error |
+| 1 | Mean eccentricity out of range |
+| 2 | Mean motion ≤ 0 |
+| 4 | Semi-latus rectum < 0 |
+| 6 | Satellite radius below Earth's surface |
+
+## Examples
+
+See the [examples guide](docs/examples.md) for detailed usage, including:
+
+- Vectorizing over multiple satellites and time steps with `jax.vmap`
+- JIT compilation for performance
+- Computing gradients with `jax.grad` and `jax.jacobian`
+- Parsing bulk TLE catalogues
 
 ## Performance
 
@@ -19,43 +98,30 @@ This implementation provides a differentiable and JIT-compilable SGP4 propagator
 |--------|------|
 | JAX SGP4 (single, unjitted) | ~69 ms |
 | JAX SGP4 (single, jitted) | ~9 μs |
-| JAX SGP4 (10,000 times, vmapped) | ~2.2 ms |
+| JAX SGP4 (10,000 times, vmapped+jitted) | ~2.2 ms |
 | Reference C++ SGP4 (single) | ~231 ns |
 | Reference C++ SGP4 (10,000 times) | ~1.4 ms |
 
-## Usage
-
-```python
-import jax
-from jax_sgp4 import sgp4
-
-# Orbital elements (from TLE)
-n0 = 15.49560899  # Mean motion (revs/day)
-e0 = 0.0004132    # Eccentricity
-i0 = 51.6334      # Inclination (degrees)
-w0 = 61.4658      # Argument of perigee (degrees)
-Omega0 = 293.5281 # RAAN (degrees)
-M0 = 298.6746     # Mean anomaly (degrees)
-Bstar = 0.36009e-3  # Drag coefficient
-
-# Propagate 500 minutes from epoch
-tsince = 500.0
-result = sgp4(n0, e0, i0, w0, Omega0, M0, 0.0, Bstar, tsince)
-r_vec = result[:3]  # Position (km)
-v_vec = result[3:]  # Velocity (km/s)
-```
-
-## Requirements
-
-- JAX
-- NumPy
+JAX SGP4 becomes competitive with — and can significantly outperform — C++ implementations when propagating many satellites or time steps in parallel, especially on GPU hardware.
 
 ## Limitations
 
-- Currently implements near-Earth propagation only (orbital period < 225 minutes)
-- Deep space perturbations (lunar/solar gravity) not yet implemented
-- Resonance effects not yet implemented
+- **Near-Earth orbits only** — orbital period must be < 225 minutes (deep-space perturbations not yet implemented)
+- **No resonance effects** — geosynchronous/Molniya resonance terms are placeholders
+- **WGS-72 constants only** — matches the standard SGP4 specification
+
+## Running Tests
+
+```bash
+pip install -e ".[dev]"
+pytest tests/ -v
+```
+
+## License
+
+MIT
 
 ## References
 
-- Hoots, F. R., & Roehrich, R. L. (1980). Spacetrack Report No. 3: Models for Propagation of NORAD Element Sets
+- Hoots, F. R., & Roehrich, R. L. (1980). *Spacetrack Report No. 3: Models for Propagation of NORAD Element Sets*
+- Vallado, D. A., Crawford, P., Hujsak, R., & Kelso, T. S. (2006). *Revisiting Spacetrack Report #3*

@@ -6,14 +6,9 @@ import numpy as np
 
 from .model import Satellite
 
-# note to self: wrap angles before passing to kepler solver? 
-# add deep space logic and potentially error checks later
-
 # ==============================================================================
 # SGP4 CONSTANTS (WGS-72 / Appendix B)
 # ==============================================================================
-
-# could change this later so all constants are in caps to make code clearer? 
 
 # Gravitational constants (WGS-72)
 J2 = 1.082616e-3 # Unnormalised zonal harmonic coefficients
@@ -22,7 +17,7 @@ J4 = -1.65597e-6
 GM = 3.986008e5 # Earth gravitational parameter km^3/s^2
 aE = 6378.135   # Earth equatorial radius in km 
 ke = 60.0 / np.sqrt(aE**3 / GM)  # sqrt(GM) in units (Earth Radii)^1.5 / min)
-# use np for constants calculated at import time to avoid jax issues at import (this didn't actually really improve anything at all)
+# (use np for constants calculated at import time to avoid jax issues at import)
 
 # Derived constants (note: in normalised units as implied by paper i.e. aE = 1) 
 k2 = 0.5 * J2 # (Earth Radii)^2 
@@ -33,7 +28,6 @@ k4 = -3/8 * J4 # Normalized
 q0_val = 120.0  # km
 s_val = 78.0    # km
 
-#@jax.jit (commented this out to compare timings of jitted vs non-jitted)
 def sgp4(sat: Satellite, tsince):
     """
     SGP4 propagation algorithm.
@@ -46,14 +40,20 @@ def sgp4(sat: Satellite, tsince):
       r       : Position vector [x, y, z] in km
       v       : Velocity vector [vx, vy, vz] in km/s
       (changed this to output concatenated array of r and v to make timing easier)
+      error_code : non-zero on error
+      1       : mean eccentricity out of range
+      2       : mean motion less than 0.0
+      3       : (perturbed eccentricity out of range) - to be implemented once deep space logic is added
+      4       : semi-latus rectum less than zero
+      6       : radius below Earth's surface
     """
     
     # --------------------------------------------------------------------------
     # A. INITIALIZATION
     # --------------------------------------------------------------------------
     
-    # note to self: paper implicity uses units of Earth Radii for distance, minutes for time and radians 
-    # for all internal calculations. (Output converted to km and km/s at end).
+    # units of Earth Radii for distance, minutes for time and radians for all internal calculations. 
+    # (Output converted to km and km/s at end).
 
     # Unpack satellite parameters
     n0 = sat.n0
@@ -116,29 +116,39 @@ def sgp4(sat: Satellite, tsince):
     beta0 = jnp.sqrt(1 - e0 ** 2)
     eta = a0_brouwer * e0 * xi
     
+    #psisq = jnp.abs(1 - eta ** 2) # abs to avoid negative value for extreme eccentricity cases?
+
     # C2 Calculation
     term_c2_1 = a0_brouwer * (1 + 1.5 * eta ** 2 + 4 * e0 * eta + e0 * eta ** 3)
     term_c2_2 = (1.5 * k2 * xi / (1 - eta ** 2)) * (-0.5 + 1.5 * theta2) * (8 + 24 * eta ** 2 + 3 * eta ** 4)
+    #term_c2_2 = (1.5 * k2 * xi / psisq) * (-0.5 + 1.5 * theta2) * (8 + 24 * eta ** 2 + 3 * eta ** 4)
     C2 = (q0 - s) ** 4 * xi ** 4 * n0_brouwer * (1 - eta ** 2) ** (-3.5) * (term_c2_1 + term_c2_2)
+    #C2 = (q0 - s) ** 4 * xi ** 4 * n0_brouwer * psisq ** (-3.5) * (term_c2_1 + term_c2_2)
     
     C1 = Bstar * C2
-    # CHECK whether this divide by zero check is nececessary / correct
+   
     C3 = jnp.where(e0 > 1e-4, 
                    (q0 - s) ** 4 * xi ** 5 * A30 * n0_brouwer * sin_i0 / (k2 * e0), 
                    0.0) # Avoid divide by zero for circular orbits
-    #C3 = (q0 - s) ** 4 * xi ** 5 * A30 * n0_brouwer * sin_i0 / (k2 * e0)
 
     # C4 Calculation
     term_c4_1 = 2 * eta * (1 + e0 * eta) + 0.5 * e0 + 0.5 * eta ** 3
     term_c4_2 = (2 * k2 * xi / (a0_brouwer * (1 - eta ** 2))) * \
                 (3 * (1 - 3 * theta2) * (1 + 1.5 * eta ** 2 - 2 * e0 * eta - 0.5 * e0 * eta ** 3) + 
                  0.75 * (1 - theta2) * (2 * eta ** 2 - e0 * eta - e0 * eta ** 3) * jnp.cos(2 * w0))
+    # term_c4_2 = (2 * k2 * xi / (a0_brouwer * psisq)) * \
+    #             (3 * (1 - 3 * theta2) * (1 + 1.5 * eta ** 2 - 2 * e0 * eta - 0.5 * e0 * eta ** 3) + 
+    #              0.75 * (1 - theta2) * (2 * eta ** 2 - e0 * eta - e0 * eta ** 3) * jnp.cos(2 * w0))
     
     C4 = 2 * n0_brouwer * (q0 - s) ** 4 * xi ** 4 * a0_brouwer * beta0 ** 2 * \
          (1 - eta ** 2) ** (-3.5) * (term_c4_1 - term_c4_2)
+    # C4 = 2 * n0_brouwer * (q0 - s) ** 4 * xi ** 4 * a0_brouwer * beta0 ** 2 * \
+    #       psisq ** (-3.5) * (term_c4_1 - term_c4_2)
          
     C5 = 2 * (q0 - s) ** 4 * xi ** 4 * a0_brouwer * beta0 ** 2 * \
          (1 - eta ** 2) ** (-3.5) * (1 + 2.75 * eta * (eta + e0) + e0 * eta ** 3)
+    # C5 = 2 * (q0 - s) ** 4 * xi ** 4 * a0_brouwer * beta0 ** 2 * \
+    #      psisq ** (-3.5) * (1 + 2.75 * eta * (eta + e0) + e0 * eta ** 3)
          
     D2 = 4 * a0_brouwer * xi * C1 ** 2
     D3 = (4 / 3) * a0_brouwer * xi ** 2 * (17 * a0_brouwer + s) * C1 ** 3
@@ -166,7 +176,6 @@ def sgp4(sat: Satellite, tsince):
     # [ADDITION] Deep Space Initialization placeholder
     # In a full implementation, this calculates the Z-terms from Appendix A.
     # For this transcription, we initialize rates to zero unless detailed logic is added.
-    # note to self: if deep space then not zero, else zero
     dot_M_LS = 0.0
     dot_w_LS = 0.0
     dot_Omega_LS = 0.0
@@ -196,16 +205,8 @@ def sgp4(sat: Satellite, tsince):
         lambda _: 0.0,
         operand=None   
     )
-    
-    # deltaM = lax.cond(
-    #     is_high_perigee,
-    #     lambda _: -2/3 * (q0 - s) ** 4 * Bstar * xi ** 4 / (e0 * eta) *
-    #               ((1 + eta * jnp.cos(MDF)) ** 3 - (1 + eta * jnp.cos(M0)) ** 3),
-    #     lambda _: 0.0,
-    #     operand=None
-    # )
 
-# add eccentricity guard
+    # deltaM update with added eccentricity guard
     deltaM = lax.cond(
       is_high_perigee,
       lambda _: jnp.where(e0 > 1e-4,
@@ -234,7 +235,7 @@ def sgp4(sat: Satellite, tsince):
 
     # 3. Secular Updates for Resonance Effects of Earth Gravity
     # --------------------------------------------------------------
-    # Add this later
+    # Placeholder for resonance logic (to be implemented in future). 
 
     # 4. Secular Update for Remaining Atmospheric Drag Effects
     # --------------------------------------------------------------
@@ -243,8 +244,6 @@ def sgp4(sat: Satellite, tsince):
     t2 = tsince ** 2
     t3 = tsince ** 3
     t4 = tsince ** 4
-
-    # CHECK which terms to cut off for this condition? paper says 'linear' term which is ambiguous
 
     # Branch 1: High Perigee (>= 220km)
     def e_high(_):
@@ -255,15 +254,6 @@ def sgp4(sat: Satellite, tsince):
                   0.25 * (3 * D3 + 12 * C1 * D2 + 10 * C1 ** 3) * t4 + 
                   0.2 * (3 * D4 + 12 * C1 * D3 + 6 * D2 ** 2 + 30 * C1 ** 2 * D2 + 15 * C1 ** 4) * tsince ** 5)
         return e, a, IL
-    
-    # # Branch 2: Low Perigee (< 220km)
-    # def e_low(_):
-    #     e = e0 - Bstar * C4 * tsince
-    #     a = (ke / n0_brouwer) ** (2/3) * (1 - C1 * tsince) ** 2
-    #     IL = M_secular + w_secular + Omega_secular + n0_brouwer * \
-    #              (1.5 * C1 * t2 + (D2 + 2 * C1 ** 2) * t3 + 
-    #               0.25 * (3 * D3 + 12 * C1 * D2 + 10 * C1 ** 3) * t4)
-    #     return e, a, IL
     
     # Branch 2: Low Perigee (< 220km)
     def e_low(_):
@@ -280,8 +270,14 @@ def sgp4(sat: Satellite, tsince):
         operand=None
     )
 
-    # note to self: not sure whether to keep this? 
-    # Enforce eccentricity limits (0 <= e < 1)
+    # Error if mean motion less than zero (unphysical)
+    # (variable to check is: n0_brouwer + deep space resonance once deep space is implemented)
+    error_code = jnp.where(n0_brouwer <= 0.0, 2, 0)
+
+    # Error if eccentricity out of valid range
+    error_code = jnp.where((e_final_sec < -0.001) | (e_final_sec >= 1), 1, error_code)
+
+    # Enforce eccentricity limit to avoid a divide by zero
     e_final_sec = jnp.clip(e_final_sec, 1e-6, 1.0 - 1e-6)
 
     # Wrap secular angles to [0, 2π)
@@ -296,8 +292,8 @@ def sgp4(sat: Satellite, tsince):
 
     # 5. Update for Long-Period Periodic Effects of Lunar and Solar Gravity
     # ---------------------------------------------------------------------
-
-    # add this later
+    # To be implemented once deep space logic is added.
+    # would add error check 3 for perturbed eccentricity, variable: e_final_sec + lunar-solar periodics applied?
 
     # 6. Update for Long-Period Periodic Effects of Earth Gravity
     # -----------------------------------------------------------
@@ -316,37 +312,34 @@ def sgp4(sat: Satellite, tsince):
     # 7. Update for Short-Period Periodic Effects of Earth Gravity
     # ------------------------------------------------------------
     
-    # Solve Kepler's Equation for (E + w)
-    # The variable U = M + w + Omega (modified) - Omega = M + w (? idk what this line is about)
     U = ILT - Omega_secular
     
     # Fixed-Point Iteration Solver for Kepler's Equation
-    # We are solving for Ew = (E + w)
-    # Iteration: Ew_new = Ew_old + Delta
-    
     def kepler_body(i, Ew_curr):
         numerator = U - ayN * jnp.cos(Ew_curr) + axN * jnp.sin(Ew_curr) - Ew_curr
         denominator = 1 - ayN * jnp.sin(Ew_curr) - axN * jnp.cos(Ew_curr)
         return Ew_curr + numerator / denominator
     
-    # Initial guess
     Ew_initial = U
     
     # Run 10 iterations
     Ew = lax.fori_loop(0, 10, kepler_body, Ew_initial)
 
-    # sgp4 python also has a cut off if correction becomes negligibly small and a limit on step size
-    # I could do this later but i think 10 iterations is fine for now
-    # if I want to add cut off condition then use lax.while_loop instead
+    # (sgp4 python reference also implements acut off if correction becomes negligibly small and a limit on step size 
+    # if this is implemented, use lax.while_loop instead)
 
     # Calculate preliminary quantities for short-period periodics
     ecosE = axN * jnp.cos(Ew) + ayN * jnp.sin(Ew)
     esinE = axN * jnp.sin(Ew) - ayN * jnp.cos(Ew)
     
-    e_osc = jnp.sqrt(ecosE ** 2 + esinE ** 2) # note to self: this is diff. to exact eq. in paper but gives same result
-    #e_osc = jnp.clip(e_osc, 1e-6, 1.0 - 1e-6) # Safety clip - CHECK if needed later
+    e_osc = jnp.sqrt(ecosE ** 2 + esinE ** 2) 
+    e_osc = jnp.clip(e_osc, 1e-6, 1.0 - 1e-6) # Safety clip 
     
     pL = a_final_sec * (1 - e_osc ** 2)
+
+    # Error if semi-latus rectum less than zero (unphysical)
+    error_code = jnp.where(pL <= 0.0, 4, error_code)
+
     r = a_final_sec * (1 - ecosE)
     
     rdot = ke * jnp.sqrt(a_final_sec) / r * esinE
@@ -414,7 +407,10 @@ def sgp4(sat: Satellite, tsince):
     r_vec = rk * U * aE
     v_vec = (rdotk * U + rfdotk * V) * aE / 60.0
 
-    return jnp.concatenate((r_vec, v_vec))
+    # Error if radius below Earth's surface (unphysical)
+    error_code = jnp.where(rk < 1.0, 6, error_code)
 
-    # # If output as separate r_vec, v_vec desired:
-    #return r_vec, v_vec
+    # mask errors with NaN?
+
+    # may need to comment out error code here to make timing work 
+    return jnp.concatenate((r_vec, v_vec)), error_code

@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from jax_sgp4 import Satellite, sgp4, tle2sat
+from jaxsgp4 import Satellite, sgp4, tle2sat
 
 
 # Sample TLE (Starlink-1008)

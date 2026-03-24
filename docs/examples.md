@@ -1,13 +1,13 @@
 # Usage Examples
 
-This guide demonstrates how to use `jax_sgp4` for satellite orbit propagation, including how to leverage JAX transformations for performance and differentiability.
+This guide demonstrates how to use `jaxsgp4` for satellite orbit propagation, including how to leverage JAX transformations for performance and differentiability.
 
 ## Basic Propagation
 
 Parse a TLE and propagate to a time offset from epoch:
 
 ```python
-from jax_sgp4 import tle2sat, sgp4
+from jaxsgp4 import tle2sat, sgp4
 
 # Two-Line Element set for a satellite
 tle_line1 = "1 44714U 19074B   26013.33334491  .00010762  00000+0  67042-3 0  9990"
@@ -32,7 +32,7 @@ If you prefer to specify the target time as a Julian Date rather than minutes-si
 
 ```python
 import jax.numpy as jnp
-from jax_sgp4 import tle2sat, sgp4_jdfr
+from jaxsgp4 import tle2sat, sgp4_jdfr
 
 sat = tle2sat(tle_line1, tle_line2)
 
@@ -66,7 +66,7 @@ Use `jax.vmap` to propagate a single satellite to many time points in parallel:
 ```python
 import jax
 import jax.numpy as jnp
-from jax_sgp4 import tle2sat, sgp4
+from jaxsgp4 import tle2sat, sgp4
 
 sat = tle2sat(tle_line1, tle_line2)
 
@@ -93,7 +93,7 @@ Parse multiple TLEs and propagate all satellites to a single time:
 
 ```python
 import jax
-from jax_sgp4 import tle2sat_array, sgp4
+from jaxsgp4 import tle2sat_array, sgp4
 
 # Multiple TLE lines
 tle_1_lines = [
@@ -123,7 +123,7 @@ Compose two `vmap` calls to propagate N satellites to M time steps, producing an
 ```python
 import jax
 import jax.numpy as jnp
-from jax_sgp4 import tle2sat_array, sgp4
+from jaxsgp4 import tle2sat_array, sgp4
 
 # Parse satellites
 sats = tle2sat_array(tle_1_lines, tle_2_lines)
@@ -151,7 +151,7 @@ print(f"Errors shape: {errors.shape}")  # (2, 144)
 The package includes sample Starlink TLE data. Here's how to load TLEs from a text file:
 
 ```python
-from jax_sgp4 import tle2sat_array
+from jaxsgp4 import tle2sat_array
 
 # Read a 3-line TLE file (name, line1, line2 repeating)
 with open("path/to/tles.txt") as f:
@@ -166,14 +166,14 @@ sats = tle2sat_array(tle_1_lines, tle_2_lines)
 
 ## Computing Gradients
 
-Since `jax_sgp4` is a pure JAX implementation, you can compute exact gradients using automatic differentiation. This is useful for orbit determination and optimisation.
+Since `jaxsgp4` is a pure JAX implementation, you can compute exact gradients using automatic differentiation. This is useful for orbit determination and optimisation.
 
 ### Gradient with Respect to Time
 
 ```python
 import jax
 import jax.numpy as jnp
-from jax_sgp4 import tle2sat, sgp4
+from jaxsgp4 import tle2sat, sgp4
 
 sat = tle2sat(tle_line1, tle_line2)
 
@@ -192,7 +192,7 @@ print(f"dr/dt at t=0: {d_radius_dt(0.0)} km/min")
 ```python
 import jax
 import jax.numpy as jnp
-from jax_sgp4 import Satellite, sgp4
+from jaxsgp4 import Satellite, sgp4
 
 def position_x(inclination):
     """X-position as a function of inclination."""
@@ -213,7 +213,7 @@ print(f"dx/di: {grad_fn(jnp.array(53.0))}")
 
 ```python
 import jax
-from jax_sgp4 import tle2sat, sgp4
+from jaxsgp4 import tle2sat, sgp4
 
 sat = tle2sat(tle_line1, tle_line2)
 

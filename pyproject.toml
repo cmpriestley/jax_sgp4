@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "jax_sgp4"
+name = "jaxsgp4"
 version = "0.1.0"
 description = "A pure JAX implementation of the SGP4 satellite orbit propagation algorithm"
 readme = "README.md"
@@ -34,12 +34,12 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/cmpriestley/jax_sgp4"
-Repository = "https://github.com/cmpriestley/jax_sgp4"
-Issues = "https://github.com/cmpriestley/jax_sgp4/issues"
+Homepage = "https://github.com/cmpriestley/jaxsgp4"
+Repository = "https://github.com/cmpriestley/jaxsgp4"
+Issues = "https://github.com/cmpriestley/jaxsgp4/issues"
 
 [tool.setuptools.package-data]
-jax_sgp4 = ["data/*.txt"]
+jaxsgp4 = ["data/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

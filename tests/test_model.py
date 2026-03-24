@@ -1,6 +1,6 @@
 """Tests for the Satellite model."""
 
-from jax_sgp4 import Satellite
+from jaxsgp4 import Satellite
 
 
 def test_satellite_creation():

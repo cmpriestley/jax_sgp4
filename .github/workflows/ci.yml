@@ -46,4 +46,4 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Check import structure
-        run: python -c "import jax_sgp4; print(jax_sgp4.__version__)"
+        run: python -c "import jaxsgp4; print(jaxsgp4.__version__)"

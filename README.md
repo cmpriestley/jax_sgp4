@@ -1,6 +1,6 @@
 # JAX SGP4
 
-[![CI](https://github.com/cmpriestley/jax_sgp4/actions/workflows/ci.yml/badge.svg)](https://github.com/cmpriestley/jax_sgp4/actions/workflows/ci.yml)
+[![CI](https://github.com/cmpriestley/jaxsgp4/actions/workflows/ci.yml/badge.svg)](https://github.com/cmpriestley/jaxsgp4/actions/workflows/ci.yml)
 
 A pure JAX implementation of the SGP4 (Simplified General Perturbations 4) satellite orbit propagation algorithm.
 
@@ -8,7 +8,7 @@ A pure JAX implementation of the SGP4 (Simplified General Perturbations 4) satel
 
 ## Overview
 
-`jax_sgp4` provides a differentiable and JIT-compilable SGP4 propagator built entirely in JAX. The SGP4 algorithm is the standard method for propagating Two-Line Element (TLE) sets to predict satellite positions and velocities.
+`jaxsgp4` provides a differentiable and JIT-compilable SGP4 propagator built entirely in JAX. The SGP4 algorithm is the standard method for propagating Two-Line Element (TLE) sets to predict satellite positions and velocities.
 
 Because the implementation uses only JAX primitives, it is fully compatible with JAX's transformation system:
 
@@ -19,21 +19,21 @@ Because the implementation uses only JAX primitives, it is fully compatible with
 ## Installation
 
 ```bash
-pip install jax_sgp4
+pip install jaxsgp4
 ```
 
 Or install from source:
 
 ```bash
-git clone https://github.com/cmpriestley/jax_sgp4.git
-cd jax_sgp4
+git clone https://github.com/cmpriestley/jaxsgp4.git
+cd jaxsgp4
 pip install -e ".[dev]"
 ```
 
 ## Quick Start
 
 ```python
-from jax_sgp4 import tle2sat, sgp4
+from jaxsgp4 import tle2sat, sgp4
 
 # Parse a TLE
 tle_line1 = "1 44714U 19074B   26013.33334491  .00010762  00000+0  67042-3 0  9990"

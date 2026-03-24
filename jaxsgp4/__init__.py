@@ -1,4 +1,4 @@
-# JAX SGP4 - A JAX implementation of the SGP4 satellite orbit propagation algorithm
+# JAXSGP4 - A JAX implementation of the SGP4 satellite orbit propagation algorithm
 
 __version__ = "0.1.0"
 

@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from jax_sgp4 import sgp4, sgp4_jdfr, tle2sat
+from jaxsgp4 import sgp4, sgp4_jdfr, tle2sat
 
 
 TLE_1 = "1 44714U 19074B   26013.33334491  .00010762  00000+0  67042-3 0  9990"

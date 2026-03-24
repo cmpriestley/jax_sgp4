@@ -385,4 +385,5 @@ def sgp4(sat: Satellite, tsince):
     # Error if radius below Earth's surface (unphysical)
     error_code = jnp.where(rk < 1.0, 6, error_code)
 
-    return jnp.concatenate((r_vec, v_vec)), error_code
+    return jnp.concatenate((r_vec, v_vec))
+    #return jnp.concatenate((r_vec, v_vec)), error_code

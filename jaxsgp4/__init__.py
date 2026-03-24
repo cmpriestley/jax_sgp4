@@ -5,7 +5,7 @@ __version__ = "0.1.0"
 from .model import Satellite
 from .propagation import sgp4
 from .functions import sgp4_jdfr
-from .notio import tle2sat, tle2sat_array
+from .tle import tle2sat, tle2sat_array
 
 __all__ = [
     "__version__",

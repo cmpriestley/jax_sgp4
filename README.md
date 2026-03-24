@@ -1,4 +1,4 @@
-# JAX SGP4
+# jaxsgp4
 
 [![CI](https://github.com/cmpriestley/jaxsgp4/actions/workflows/ci.yml/badge.svg)](https://github.com/cmpriestley/jaxsgp4/actions/workflows/ci.yml)
 
@@ -96,7 +96,7 @@ See the [examples guide](docs/examples.md) for detailed usage, including:
 
 ## Performance
 
-JAX SGP4 becomes competitive with — and can significantly outperform — C++ implementations when propagating many satellites or time steps in parallel, especially on GPU hardware.
+`jaxsgp4` becomes competitive with — and can significantly outperform — C++ implementations when propagating many satellites or time steps in parallel, especially on GPU hardware.
 
 ## Limitations
 

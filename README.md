@@ -96,11 +96,24 @@ See the [examples guide](docs/examples.md) for detailed usage, including:
 
 ## Performance
 
-`jaxsgp4` becomes competitive with — and can significantly outperform — C++ implementations when propagating many satellites or time steps in parallel, especially on GPU hardware.
+`jaxsgp4` exploits GPU batch parallelism to dramatically outperform traditional C++ SGP4 implementations. On an NVIDIA A100, propagating the entire Starlink constellation (9,341 satellites × 1,000 time steps) completes in **3.8 ms** — a **1,500× speedup** over C++.
+
+| Hardware | Peak speedup | Break-even batch size |
+|----------|-------------:|----------------------:|
+| NVIDIA T4 | ~250× | ~300 |
+| NVIDIA A100 | ~1,500× | ~500 |
+
+See the [paper](https://arxiv.org/abs/2603.27830) for full benchmark methodology and results.
+
+## Precision
+
+By default JAX uses 32-bit floating point. FP32 introduces ~1 m positional error at epoch, remaining under 1 km over two weeks of propagation — well within SGP4's inherent physical model error (~1 km/day). FP64 matches the C++ reference to ~1 μm.
+
+> **Tip:** when using FP32, supply propagation time via `sgp4(sat, tsince)` (minutes since epoch) rather than Julian dates to avoid systematic epoch-representation errors.
 
 ## Limitations
 
-- **Near-Earth orbits only** — orbital period must be < 225 minutes (deep-space perturbations not yet implemented)
+- **Near-Earth orbits only** — orbital period must be < 225 minutes (SDP4 deep-space extensions are under development)
 - **WGS-72 constants only** — matches the standard SGP4 specification
 
 ## Running Tests
@@ -113,6 +126,21 @@ pytest tests/ -v
 ## License
 
 MIT
+
+## Citation
+
+If you use `jaxsgp4` in your research, please cite:
+
+```bibtex
+@article{priestley2026jaxsgp4,
+  title={jaxsgp4: GPU-accelerated mega-constellation propagation with batch parallelism},
+  author={Priestley, Charlotte and Handley, Will},
+  year={2026},
+  eprint={2603.27830},
+  archivePrefix={arXiv},
+  primaryClass={cs.DC}
+}
+```
 
 ## References
 

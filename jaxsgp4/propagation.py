@@ -27,11 +27,17 @@ k4 = -3/8 * J4                  # Normalized
 q0_val = 120.0                  # km
 s_val = 78.0                    # km
 
-def sgp4(sat: Satellite, tsince):
-    """SGP4 propagation algorithm.
+def sgp4_base(n0, e0, i0, w0, Omega0, M0, Bstar, tsince):
+    """SGP4 propagation algorithm with direct orbital element inputs.
 
     Inputs:
-      sat        : Satellite object containing orbital elements and parameters
+      n0         : Mean motion at epoch (revs/day)
+      e0         : Eccentricity at epoch
+      i0         : Inclination at epoch (degrees)
+      w0         : Argument of perigee at epoch (degrees)
+      Omega0     : RAAN at epoch (degrees)
+      M0         : Mean anomaly at epoch (degrees)
+      Bstar       : Drag coefficient (Earth radii^-1)
       tsince     : Time since epoch (minutes)
 
     Returns:
@@ -43,24 +49,8 @@ def sgp4(sat: Satellite, tsince):
                    4 = semi-latus rectum < 0
                    6 = satellite radius below Earth's surface
     """
-    
-    # --------------------------------------------------------------------------
-    # A. INITIALIZATION
-    # --------------------------------------------------------------------------
-    
-    # Internal units: Earth Radii for distance, minutes for time, radians for angles.
-    # Output converted to km and km/s at end.
 
-    # Unpack satellite parameters
-    n0 = sat.n0
-    e0 = sat.e0
-    i0 = sat.i0
-    w0 = sat.w0
-    Omega0 = sat.Omega0
-    M0 = sat.M0
-    Bstar = sat.Bstar
-
-    # Convert inputs to radians
+        # Convert inputs to radians
     i0 = jnp.radians(i0)
     w0 = jnp.radians(w0)
     Omega0 = jnp.radians(Omega0)
@@ -386,3 +376,32 @@ def sgp4(sat: Satellite, tsince):
     error_code = jnp.where(rk < 1.0, 6, error_code)
 
     return jnp.concatenate((r_vec, v_vec)), error_code
+
+
+def sgp4(sat: Satellite, tsince):
+    """SGP4 propagation algorithm.
+
+    Inputs:
+      sat        : Satellite object containing orbital elements and parameters
+      tsince     : Time since epoch (minutes)
+
+    Returns:
+      rv         : Concatenated position and velocity array [x, y, z, vx, vy, vz]
+                   in km and km/s (TEME frame)
+      error_code : 0 if no error, otherwise:
+                   1 = mean eccentricity out of range
+                   2 = mean motion <= 0
+                   4 = semi-latus rectum < 0
+                   6 = satellite radius below Earth's surface
+    """
+
+    # Unpack satellite parameters
+    n0 = sat.n0
+    e0 = sat.e0
+    i0 = sat.i0
+    w0 = sat.w0
+    Omega0 = sat.Omega0
+    M0 = sat.M0
+    Bstar = sat.Bstar
+
+    return sgp4_base(n0, e0, i0, w0, Omega0, M0, Bstar, tsince)
